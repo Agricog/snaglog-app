@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
-import { Upload, X, Image, Loader2, ImageIcon } from 'lucide-react'
+import { Upload, X, Image, Loader2 } from 'lucide-react'
 import api from '../lib/api'
 
 export default function NewReport() {
@@ -16,34 +16,24 @@ export default function NewReport() {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     acceptedFiles.forEach(file => {
-      const isHeic = file.type === 'image/heic' || 
-                     file.type === 'image/heif' || 
-                     file.name.toLowerCase().endsWith('.heic') ||
-                     file.name.toLowerCase().endsWith('.heif')
-      
       setFiles(prev => [...prev, file])
-      
-      if (isHeic) {
-        // HEIC can't preview in browser - use placeholder
-        setPreviews(prev => [...prev, 'heic'])
-      } else {
-        setPreviews(prev => [...prev, URL.createObjectURL(file)])
-      }
+      setPreviews(prev => [...prev, URL.createObjectURL(file)])
     })
   }, [])
 
+  // By NOT accepting HEIC explicitly, iOS auto-converts to JPEG
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 
-      'image/*': ['.jpeg', '.jpg', '.png', '.webp', '.heic', '.heif'] 
+      'image/jpeg': ['.jpeg', '.jpg'],
+      'image/png': ['.png'],
+      'image/webp': ['.webp']
     },
     maxSize: 10 * 1024 * 1024,
   })
 
   function removeFile(index: number) {
-    if (previews[index] && previews[index] !== 'heic') {
-      URL.revokeObjectURL(previews[index])
-    }
+    URL.revokeObjectURL(previews[index])
     setFiles(prev => prev.filter((_, i) => i !== index))
     setPreviews(prev => prev.filter((_, i) => i !== index))
   }
@@ -79,8 +69,8 @@ export default function NewReport() {
       })
 
       await api.post(`/api/analyze/${res.data.report.id}`)
+
       navigate(`/report/${res.data.report.id}/review`)
-      
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create report')
     } finally {
@@ -168,22 +158,15 @@ export default function NewReport() {
             <p className="text-sm text-slate-400">or click to browse (max 10MB per photo)</p>
           </div>
 
-          {files.length > 0 && (
+          {previews.length > 0 && (
             <div className="grid grid-cols-4 gap-4 mt-6">
               {previews.map((preview, index) => (
                 <div key={index} className="relative group">
-                  {preview === 'heic' ? (
-                    <div className="w-full h-24 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg flex flex-col items-center justify-center border border-orange-200">
-                      <ImageIcon className="w-6 h-6 text-orange-400 mb-1" />
-                      <span className="text-xs text-orange-500 font-medium">iPhone Photo</span>
-                    </div>
-                  ) : (
-                    <img
-                      src={preview}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg"
-                    />
-                  )}
+                  <img
+                    src={preview}
+                    alt={`Preview ${index + 1}`}
+                    className="w-full h-24 object-cover rounded-lg"
+                  />
                   <button
                     type="button"
                     onClick={() => removeFile(index)}

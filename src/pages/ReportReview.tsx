@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Save, CreditCard, Loader2, RefreshCw, Trash2, ChevronDown } from 'lucide-react'
+import { useParams } from 'react-router-dom'
+import { CreditCard, Loader2, RefreshCw, Trash2, ChevronDown } from 'lucide-react'
 import api from '../lib/api'
 
 interface Snag {
@@ -40,7 +40,6 @@ const TRADES = [
 
 export default function ReportReview() {
   const { reportId } = useParams()
-  const navigate = useNavigate()
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

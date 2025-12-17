@@ -1,80 +1,35 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
-import { Upload, X, Image, Loader2 } from 'lucide-react'
+import { Upload, X, Image, Loader2, ImageIcon } from 'lucide-react'
 import api from '../lib/api'
 
 export default function NewReport() {
   const navigate = useNavigate()
   const [files, setFiles] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
-  const [converting, setConverting] = useState(false)
   const [propertyAddress, setPropertyAddress] = useState('')
   const [propertyType, setPropertyType] = useState('')
   const [developerName, setDeveloperName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const convertHeicToJpeg = async (file: File): Promise<{ file: File; preview: string }> => {
-    const isHeic = file.type === 'image/heic' || 
-                   file.type === 'image/heif' || 
-                   file.name.toLowerCase().endsWith('.heic') ||
-                   file.name.toLowerCase().endsWith('.heif')
-
-    if (isHeic) {
-      try {
-        // Dynamic import to avoid build issues
-        const heic2any = (await import('heic2any')).default
-        
-        const blob = await heic2any({
-          blob: file,
-          toType: 'image/jpeg',
-          quality: 0.85
-        })
-        
-        const convertedBlob = Array.isArray(blob) ? blob[0] : blob
-        const convertedFile = new File(
-          [convertedBlob], 
-          file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
-          { type: 'image/jpeg' }
-        )
-        
-        return {
-          file: convertedFile,
-          preview: URL.createObjectURL(convertedBlob)
-        }
-      } catch (err) {
-        console.error('HEIC conversion failed:', err)
-        // Return original file, backend will convert it
-        return {
-          file,
-          preview: ''
-        }
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    acceptedFiles.forEach(file => {
+      const isHeic = file.type === 'image/heic' || 
+                     file.type === 'image/heif' || 
+                     file.name.toLowerCase().endsWith('.heic') ||
+                     file.name.toLowerCase().endsWith('.heif')
+      
+      setFiles(prev => [...prev, file])
+      
+      if (isHeic) {
+        // HEIC can't preview in browser - use placeholder
+        setPreviews(prev => [...prev, 'heic'])
+      } else {
+        setPreviews(prev => [...prev, URL.createObjectURL(file)])
       }
-    }
-    
-    return {
-      file,
-      preview: URL.createObjectURL(file)
-    }
-  }
-
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    setConverting(true)
-    
-    for (const file of acceptedFiles) {
-      try {
-        const { file: processedFile, preview } = await convertHeicToJpeg(file)
-        setFiles(prev => [...prev, processedFile])
-        setPreviews(prev => [...prev, preview])
-      } catch (err) {
-        console.error('Error processing file:', err)
-        setFiles(prev => [...prev, file])
-        setPreviews(prev => [...prev, ''])
-      }
-    }
-    
-    setConverting(false)
+    })
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -86,7 +41,7 @@ export default function NewReport() {
   })
 
   function removeFile(index: number) {
-    if (previews[index]) {
+    if (previews[index] && previews[index] !== 'heic') {
       URL.revokeObjectURL(previews[index])
     }
     setFiles(prev => prev.filter((_, i) => i !== index))
@@ -213,27 +168,21 @@ export default function NewReport() {
             <p className="text-sm text-slate-400">or click to browse (max 10MB per photo)</p>
           </div>
 
-          {converting && (
-            <div className="flex items-center justify-center gap-2 mt-4 text-slate-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Converting photos...</span>
-            </div>
-          )}
-
-          {previews.length > 0 && (
+          {files.length > 0 && (
             <div className="grid grid-cols-4 gap-4 mt-6">
               {previews.map((preview, index) => (
                 <div key={index} className="relative group">
-                  {preview ? (
+                  {preview === 'heic' ? (
+                    <div className="w-full h-24 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg flex flex-col items-center justify-center border border-orange-200">
+                      <ImageIcon className="w-6 h-6 text-orange-400 mb-1" />
+                      <span className="text-xs text-orange-500 font-medium">iPhone Photo</span>
+                    </div>
+                  ) : (
                     <img
                       src={preview}
                       alt={`Preview ${index + 1}`}
                       className="w-full h-24 object-cover rounded-lg"
                     />
-                  ) : (
-                    <div className="w-full h-24 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-                    </div>
                   )}
                   <button
                     type="button"
@@ -256,7 +205,7 @@ export default function NewReport() {
 
         <button
           type="submit"
-          disabled={loading || converting}
+          disabled={loading}
           className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {loading ? (

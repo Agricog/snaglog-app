@@ -15,17 +15,12 @@ export default function NewReport() {
   const [error, setError] = useState('')
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFiles((prev) => [...prev, ...acceptedFiles])
-    
-    // Create previews
-    acceptedFiles.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        setPreviews((prev) => [...prev, reader.result as string])
-      }
-      reader.readAsDataURL(file)
-    })
-  }, [])
+  setFiles((prev) => [...prev, ...acceptedFiles])
+  
+  // Create previews using URL.createObjectURL (more reliable)
+  const newPreviews = acceptedFiles.map((file) => URL.createObjectURL(file))
+  setPreviews((prev) => [...prev, ...newPreviews])
+}, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

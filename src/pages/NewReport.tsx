@@ -79,8 +79,8 @@ export default function NewReport() {
       })
 
       await api.post(`/api/analyze/${res.data.report.id}`)
-
       navigate(`/report/${res.data.report.id}/review`)
+      
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create report')
     } finally {

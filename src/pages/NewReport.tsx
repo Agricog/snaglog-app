@@ -170,7 +170,7 @@ export default function NewReport() {
 
           {files.length > 0 && (
             <div className="grid grid-cols-4 gap-4 mt-6">
-              {files.map((file, index) => (
+              {files.map((_, index) => (
                 <div key={index} className="relative group">
                   {previews[index] ? (
                     <img

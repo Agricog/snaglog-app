@@ -1,6 +1,18 @@
-import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { CreditCard, Loader2, RefreshCw, Trash2, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { 
+  ChevronLeft, 
+  Loader2, 
+  CheckCircle, 
+  AlertTriangle, 
+  AlertCircle,
+  RefreshCw,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  FileText
+} from 'lucide-react'
 import api from '../lib/api'
 
 interface Snag {
@@ -9,11 +21,12 @@ interface Snag {
   room: string | null
   defectType: string | null
   description: string | null
-  severity: 'MINOR' | 'MODERATE' | 'MAJOR'
+  severity: string | null
   suggestedTrade: string | null
   remedialAction: string | null
   aiConfidence: number | null
   userEdited: boolean
+  displayOrder: number
 }
 
 interface Report {
@@ -24,27 +37,21 @@ interface Report {
   inspectionDate: string
   status: string
   paymentStatus: string
+  notes: string | null
   snags: Snag[]
 }
 
-const ROOMS = [
-  'Kitchen', 'Living Room', 'Dining Room', 'Master Bedroom', 'Bedroom 2', 
-  'Bedroom 3', 'Bedroom 4', 'Bathroom', 'En-Suite', 'WC', 'Hallway', 
-  'Stairs', 'Landing', 'Utility Room', 'Garage', 'Garden', 'External', 'Other'
-]
-
-const TRADES = [
-  'Decorator', 'Joiner', 'Plumber', 'Electrician', 'Tiler', 
-  'Plasterer', 'Builder', 'Roofer', 'Glazier', 'Other'
-]
-
 export default function ReportReview() {
   const { reportId } = useParams()
+  const navigate = useNavigate()
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [checkingOut, setCheckingOut] = useState(false)
+  const [error, setError] = useState('')
   const [expandedSnag, setExpandedSnag] = useState<string | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [reanalyzing, setReanalyzing] = useState<string | null>(null)
+  const [notes, setNotes] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
 
   useEffect(() => {
     fetchReport()
@@ -53,194 +60,231 @@ export default function ReportReview() {
   async function fetchReport() {
     try {
       const res = await api.get(`/api/report/${reportId}`)
-      setReport(res.data.report)
-    } catch (error) {
-      console.error('Failed to fetch report:', error)
+      setReport(res.data)
+      setNotes(res.data.notes || '')
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to load report')
     } finally {
       setLoading(false)
     }
   }
 
-  async function updateSnag(snagId: string, updates: Partial<Snag>) {
-    if (!report) return
-
-    // Optimistic update
-    setReport({
-      ...report,
-      snags: report.snags.map((s) =>
-        s.id === snagId ? { ...s, ...updates } : s
-      ),
-    })
-
+  async function saveNotes() {
+    setSavingNotes(true)
     try {
-      await api.patch(`/api/report/${reportId}/snag/${snagId}`, updates)
-    } catch (error) {
-      console.error('Failed to update snag:', error)
-      fetchReport() // Revert on error
+      await api.patch(`/api/report/${reportId}`, { notes })
+      setReport(prev => prev ? { ...prev, notes } : null)
+    } catch (err) {
+      console.error('Failed to save notes:', err)
+    } finally {
+      setSavingNotes(false)
     }
   }
 
-  async function deleteSnag(snagId: string) {
-    if (!report || !confirm('Delete this snag?')) return
-
-    setReport({
-      ...report,
-      snags: report.snags.filter((s) => s.id !== snagId),
-    })
-
+  async function updateSnag(snagId: string, data: Partial<Snag>) {
     try {
-      await api.delete(`/api/report/${reportId}/snag/${snagId}`)
-    } catch (error) {
-      console.error('Failed to delete snag:', error)
-      fetchReport()
+      await api.patch(`/api/report/${reportId}/snag/${snagId}`, data)
+      setReport(prev => {
+        if (!prev) return null
+        return {
+          ...prev,
+          snags: prev.snags.map(s => s.id === snagId ? { ...s, ...data, userEdited: true } : s)
+        }
+      })
+    } catch (err) {
+      console.error('Failed to update snag:', err)
     }
   }
 
   async function reanalyzeSnag(snagId: string) {
+    setReanalyzing(snagId)
     try {
-      setSaving(true)
       await api.post(`/api/analyze/${reportId}/snag/${snagId}`)
       await fetchReport()
-    } catch (error) {
-      console.error('Failed to re-analyze:', error)
+    } catch (err) {
+      console.error('Failed to reanalyze:', err)
     } finally {
-      setSaving(false)
+      setReanalyzing(null)
+    }
+  }
+
+  async function deleteSnag(snagId: string) {
+    if (!confirm('Delete this snag?')) return
+    try {
+      await api.delete(`/api/report/${reportId}/snag/${snagId}`)
+      setReport(prev => {
+        if (!prev) return null
+        return { ...prev, snags: prev.snags.filter(s => s.id !== snagId) }
+      })
+    } catch (err) {
+      console.error('Failed to delete:', err)
     }
   }
 
   async function handleCheckout() {
-    setCheckingOut(true)
+    setCheckoutLoading(true)
     try {
+      // Save notes before checkout
+      if (notes !== report?.notes) {
+        await api.patch(`/api/report/${reportId}`, { notes })
+      }
+      
       const res = await api.post(`/api/payment/checkout/${reportId}`)
       window.location.href = res.data.url
-    } catch (error) {
-      console.error('Checkout error:', error)
-      setCheckingOut(false)
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Checkout failed')
+      setCheckoutLoading(false)
     }
   }
 
-  function getSeverityColor(severity: string) {
+  function getSeverityColor(severity: string | null) {
     switch (severity) {
-      case 'MINOR': return 'bg-green-100 text-green-700'
-      case 'MODERATE': return 'bg-yellow-100 text-yellow-700'
-      case 'MAJOR': return 'bg-red-100 text-red-700'
-      default: return 'bg-slate-100 text-slate-700'
+      case 'MAJOR': return 'bg-red-100 text-red-700 border-red-200'
+      case 'MODERATE': return 'bg-orange-100 text-orange-700 border-orange-200'
+      case 'MINOR': return 'bg-green-100 text-green-700 border-green-200'
+      default: return 'bg-gray-100 text-gray-700 border-gray-200'
+    }
+  }
+
+  function getSeverityIcon(severity: string | null) {
+    switch (severity) {
+      case 'MAJOR': return <AlertCircle className="w-4 h-4" />
+      case 'MODERATE': return <AlertTriangle className="w-4 h-4" />
+      case 'MINOR': return <CheckCircle className="w-4 h-4" />
+      default: return null
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
       </div>
     )
   }
 
-  if (!report) {
+  if (error || !report) {
     return (
-      <div className="text-center py-12">
-        <p className="text-slate-500">Report not found</p>
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          {error || 'Report not found'}
+        </div>
       </div>
     )
   }
 
   const severityCounts = {
-    minor: report.snags.filter((s) => s.severity === 'MINOR').length,
-    moderate: report.snags.filter((s) => s.severity === 'MODERATE').length,
-    major: report.snags.filter((s) => s.severity === 'MAJOR').length,
+    major: report.snags.filter(s => s.severity === 'MAJOR').length,
+    moderate: report.snags.filter(s => s.severity === 'MODERATE').length,
+    minor: report.snags.filter(s => s.severity === 'MINOR').length,
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto pb-24">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
-        <h1 className="text-xl font-bold text-slate-800 mb-1">{report.propertyAddress}</h1>
-        <p className="text-slate-500 text-sm mb-4">
-          {report.propertyType} {report.developerName && `• ${report.developerName}`}
-        </p>
+      <button
+        onClick={() => navigate('/')}
+        className="flex items-center gap-1 text-slate-600 hover:text-slate-800 mb-4"
+      >
+        <ChevronLeft className="w-5 h-5" />
+        Back to Dashboard
+      </button>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold text-slate-800">{report.snags.length}</span>
-            <span className="text-slate-500">snags</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor('MINOR')}`}>
-              {severityCounts.minor} Minor
-            </span>
-            <span className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor('MODERATE')}`}>
-              {severityCounts.moderate} Moderate
-            </span>
-            <span className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor('MAJOR')}`}>
-              {severityCounts.major} Major
-            </span>
-          </div>
+      <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+        <h1 className="text-2xl font-bold text-slate-800 mb-1">{report.propertyAddress}</h1>
+        <div className="flex flex-wrap gap-3 text-sm text-slate-500">
+          {report.propertyType && <span>{report.propertyType}</span>}
+          {report.developerName && <span>• {report.developerName}</span>}
+          <span>• {new Date(report.inspectionDate).toLocaleDateString()}</span>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-red-600">{severityCounts.major}</div>
+          <div className="text-sm text-red-600">Major</div>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-orange-600">{severityCounts.moderate}</div>
+          <div className="text-sm text-orange-600">Moderate</div>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-green-600">{severityCounts.minor}</div>
+          <div className="text-sm text-green-600">Minor</div>
         </div>
       </div>
 
       {/* Snags List */}
+      <h2 className="text-lg font-semibold text-slate-800 mb-4">
+        Defects ({report.snags.length})
+      </h2>
+
       <div className="space-y-4 mb-6">
         {report.snags.map((snag, index) => (
           <div
             key={snag.id}
             className="bg-white rounded-xl border border-slate-200 overflow-hidden"
           >
-            {/* Snag Header */}
+            {/* Snag Header - Always visible */}
             <div
-              className="flex items-center gap-4 p-4 cursor-pointer hover:bg-slate-50"
+              className="flex items-start gap-4 p-4 cursor-pointer hover:bg-slate-50"
               onClick={() => setExpandedSnag(expandedSnag === snag.id ? null : snag.id)}
             >
               <img
                 src={snag.photoUrl}
                 alt={`Snag ${index + 1}`}
-                className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
+                className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-slate-800">
-                    #{String(index + 1).padStart(3, '0')}
-                  </span>
-                  <span className="text-slate-600 truncate">
-                    {snag.defectType || 'Unidentified defect'}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(snag.severity)}`}>
-                    {snag.severity}
-                  </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold text-slate-800">
+                      {snag.defectType || 'Analyzing...'}
+                    </h3>
+                    <p className="text-sm text-slate-500 line-clamp-2">
+                      {snag.description || 'Processing...'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getSeverityColor(snag.severity)}`}>
+                      {getSeverityIcon(snag.severity)}
+                      {snag.severity || '...'}
+                    </span>
+                    {expandedSnag === snag.id ? (
+                      <ChevronUp className="w-5 h-5 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-slate-400" />
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-slate-500 truncate">
-                  {snag.room || 'No room assigned'} • {snag.suggestedTrade || 'No trade'}
-                </p>
+                <div className="flex gap-2 mt-2 text-xs text-slate-400">
+                  {snag.room && <span className="bg-slate-100 px-2 py-0.5 rounded">{snag.room}</span>}
+                  {snag.suggestedTrade && <span className="bg-slate-100 px-2 py-0.5 rounded">{snag.suggestedTrade}</span>}
+                </div>
               </div>
-              <ChevronDown
-                className={`w-5 h-5 text-slate-400 transition-transform ${
-                  expandedSnag === snag.id ? 'rotate-180' : ''
-                }`}
-              />
             </div>
 
             {/* Expanded Edit Form */}
             {expandedSnag === snag.id && (
-              <div className="border-t border-slate-200 p-4 bg-slate-50">
-                <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="border-t border-slate-200 p-4 bg-slate-50 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Room</label>
-                    <select
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Room/Location</label>
+                    <input
+                      type="text"
                       value={snag.room || ''}
-                      onChange={(e) => updateSnag(snag.id, { room: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    >
-                      <option value="">Select room</option>
-                      {ROOMS.map((room) => (
-                        <option key={room} value={room}>{room}</option>
-                      ))}
-                    </select>
+                      onChange={e => updateSnag(snag.id, { room: e.target.value })}
+                      placeholder="e.g., Kitchen, Bedroom 1"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Severity</label>
                     <select
-                      value={snag.severity}
-                      onChange={(e) => updateSnag(snag.id, { severity: e.target.value as Snag['severity'] })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                      value={snag.severity || ''}
+                      onChange={e => updateSnag(snag.id, { severity: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                     >
                       <option value="MINOR">Minor</option>
                       <option value="MODERATE">Moderate</option>
@@ -249,74 +293,66 @@ export default function ReportReview() {
                   </div>
                 </div>
 
-                <div className="mb-4">
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Defect Type</label>
                   <input
                     type="text"
                     value={snag.defectType || ''}
-                    onChange={(e) => updateSnag(snag.id, { defectType: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    onChange={e => updateSnag(snag.id, { defectType: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                   />
                 </div>
 
-                <div className="mb-4">
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                   <textarea
                     value={snag.description || ''}
-                    onChange={(e) => updateSnag(snag.id, { description: e.target.value })}
+                    onChange={e => updateSnag(snag.id, { description: e.target.value })}
                     rows={2}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Trade</label>
-                    <select
-                      value={snag.suggestedTrade || ''}
-                      onChange={(e) => updateSnag(snag.id, { suggestedTrade: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    >
-                      <option value="">Select trade</option>
-                      {TRADES.map((trade) => (
-                        <option key={trade} value={trade}>{trade}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Remedial Action</label>
-                    <input
-                      type="text"
-                      value={snag.remedialAction || ''}
-                      onChange={(e) => updateSnag(snag.id, { remedialAction: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Suggested Trade</label>
+                  <input
+                    type="text"
+                    value={snag.suggestedTrade || ''}
+                    onChange={e => updateSnag(snag.id, { suggestedTrade: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                  />
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => reanalyzeSnag(snag.id)}
-                      disabled={saving}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:text-orange-600 transition-colors"
-                    >
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Remedial Action</label>
+                  <textarea
+                    value={snag.remedialAction || ''}
+                    onChange={e => updateSnag(snag.id, { remedialAction: e.target.value })}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                  />
+                </div>
+
+                <div className="flex justify-between pt-2">
+                  <button
+                    onClick={() => reanalyzeSnag(snag.id)}
+                    disabled={reanalyzing === snag.id}
+                    className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 disabled:opacity-50"
+                  >
+                    {reanalyzing === snag.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
                       <RefreshCw className="w-4 h-4" />
-                      Re-analyze
-                    </button>
-                    <button
-                      onClick={() => deleteSnag(snag.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </button>
-                  </div>
-                  {snag.aiConfidence !== null && (
-                    <span className="text-xs text-slate-400">
-                      AI confidence: {Math.round(snag.aiConfidence * 100)}%
-                    </span>
-                  )}
+                    )}
+                    Re-analyze with AI
+                  </button>
+                  <button
+                    onClick={() => deleteSnag(snag.id)}
+                    className="flex items-center gap-2 text-sm text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
                 </div>
               </div>
             )}
@@ -324,36 +360,57 @@ export default function ReportReview() {
         ))}
       </div>
 
-      {/* Checkout Button */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-slate-800">Ready to generate your report?</h3>
-            <p className="text-sm text-slate-500">Review complete. Download your professional PDF.</p>
+      {/* Notes Section */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-slate-800 mb-3">
+          Additional Notes
+        </h2>
+        <p className="text-sm text-slate-500 mb-3">
+          Add any additional observations or notes for the developer
+        </p>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          onBlur={saveNotes}
+          rows={4}
+          placeholder="e.g., General observations, areas of concern, recommendations..."
+          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none resize-none"
+        />
+        {savingNotes && (
+          <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Saving...
+          </p>
+        )}
+      </div>
+
+      {/* Fixed Bottom Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+          <div className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-800">{report.snags.length} defects</span>
+            <span className="mx-2">•</span>
+            <span>Ready to generate</span>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-slate-800">£19.99</div>
-            <div className="text-xs text-slate-500">one-time payment</div>
-          </div>
+          <button
+            onClick={handleCheckout}
+            disabled={checkoutLoading || report.snags.length === 0}
+            className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-xl font-bold hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {checkoutLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <CreditCard className="w-5 h-5" />
+                Pay £19.99 & Generate
+              </>
+            )}
+          </button>
         </div>
-        <button
-          onClick={handleCheckout}
-          disabled={checkingOut || report.snags.length === 0}
-          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {checkingOut ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Redirecting to checkout...
-            </>
-          ) : (
-            <>
-              <CreditCard className="w-5 h-5" />
-              Pay & Generate Report
-            </>
-          )}
-        </button>
       </div>
     </div>
   )
-}
+            }

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, X, Image, Loader2, Camera } from 'lucide-react'
+import { X, Image, Loader2, Camera, FolderOpen } from 'lucide-react'
 import api from '../lib/api'
 
 export default function NewReport() {
@@ -89,7 +89,7 @@ export default function NewReport() {
                 value={propertyAddress}
                 onChange={e => setPropertyAddress(e.target.value)}
                 placeholder="e.g., 47 Meadow View, Bristol, BS16 4QT"
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base bg-white"
               />
             </div>
 
@@ -101,7 +101,7 @@ export default function NewReport() {
                 <select
                   value={propertyType}
                   onChange={e => setPropertyType(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base bg-white"
                 >
                   <option value="">Select type</option>
                   <option value="Detached House">Detached House</option>
@@ -122,7 +122,7 @@ export default function NewReport() {
                   value={developerName}
                   onChange={e => setDeveloperName(e.target.value)}
                   placeholder="e.g., Persimmon Homes"
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base bg-white"
                 />
               </div>
             </div>
@@ -155,15 +155,14 @@ export default function NewReport() {
             className="hidden"
           />
 
-          {/* Choose from library */}
+          {/* Choose from library button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-orange-400 hover:bg-slate-50 transition-colors"
+            className="w-full border-2 border-slate-300 rounded-xl p-4 text-center hover:border-orange-400 hover:bg-slate-50 transition-colors flex items-center justify-center gap-3"
           >
-            <Upload className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-            <p className="text-slate-600">Or choose from library</p>
-            <p className="text-sm text-slate-400">Tap to browse photos</p>
+            <FolderOpen className="w-6 h-6 text-slate-400" />
+            <span className="text-slate-600">Choose from Library</span>
           </button>
           
           {/* Hidden file input for library */}

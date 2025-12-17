@@ -172,11 +172,12 @@ export default function ReportReview() {
     )
   }
 
-  const severityCounts = {
-    major: report.snags.filter(s => s.severity === 'MAJOR').length,
-    moderate: report.snags.filter(s => s.severity === 'MODERATE').length,
-    minor: report.snags.filter(s => s.severity === 'MINOR').length,
-  }
+  const snags = report?.snags || []
+const severityCounts = {
+  major: snags.filter(s => s.severity === 'MAJOR').length,
+  moderate: snags.filter(s => s.severity === 'MODERATE').length,
+  minor: snags.filter(s => s.severity === 'MINOR').length,
+}
 
   return (
     <div className="max-w-4xl mx-auto pb-24">

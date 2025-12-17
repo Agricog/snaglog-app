@@ -1,7 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDropzone } from 'react-dropzone'
-import { Upload, X, Image, Loader2 } from 'lucide-react'
+import { Upload, X, Image, Loader2, Camera } from 'lucide-react'
 import api from '../lib/api'
 
 export default function NewReport() {
@@ -13,24 +12,16 @@ export default function NewReport() {
   const [developerName, setDeveloperName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    acceptedFiles.forEach(file => {
+  const addFiles = (newFiles: FileList | null) => {
+    if (!newFiles) return
+    Array.from(newFiles).forEach(file => {
       setFiles(prev => [...prev, file])
       setPreviews(prev => [...prev, URL.createObjectURL(file)])
     })
-  }, [])
-
-  // By NOT accepting HEIC explicitly, iOS auto-converts to JPEG
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: { 
-      'image/jpeg': ['.jpeg', '.jpg'],
-      'image/png': ['.png'],
-      'image/webp': ['.webp']
-    },
-    maxSize: 10 * 1024 * 1024,
-  })
+  }
 
   function removeFile(index: number) {
     URL.revokeObjectURL(previews[index])
@@ -48,7 +39,7 @@ export default function NewReport() {
     }
 
     if (files.length === 0) {
-      setError('Please upload at least one photo')
+      setError('Please add at least one photo')
       return
     }
 
@@ -72,19 +63,20 @@ export default function NewReport() {
 
       navigate(`/report/${res.data.report.id}/review`)
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create report')
-    } finally {
+      console.error('Submit error:', err)
+      setError(err.response?.data?.error || 'Failed to create report. Please try again.')
       setLoading(false)
     }
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto px-4 pb-8">
       <h1 className="text-2xl font-bold text-slate-800 mb-2">Create New Report</h1>
-      <p className="text-slate-500 mb-8">Upload photos of defects and we'll analyze them with AI</p>
+      <p className="text-slate-500 mb-6">Take photos of defects and we'll analyze them with AI</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
+        {/* Property Details */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Property Details</h2>
           
           <div className="space-y-4">
@@ -97,11 +89,11 @@ export default function NewReport() {
                 value={propertyAddress}
                 onChange={e => setPropertyAddress(e.target.value)}
                 placeholder="e.g., 47 Meadow View, Bristol, BS16 4QT"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Property Type
@@ -109,7 +101,7 @@ export default function NewReport() {
                 <select
                   value={propertyType}
                   onChange={e => setPropertyType(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base"
                 >
                   <option value="">Select type</option>
                   <option value="Detached House">Detached House</option>
@@ -130,47 +122,74 @@ export default function NewReport() {
                   value={developerName}
                   onChange={e => setDeveloperName(e.target.value)}
                   placeholder="e.g., Persimmon Homes"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
+        {/* Photos */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">
             Photos ({files.length})
           </h2>
 
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-              isDragActive
-                ? 'border-orange-500 bg-orange-50'
-                : 'border-slate-300 hover:border-orange-400 hover:bg-slate-50'
-            }`}
+          {/* Camera Button */}
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="w-full mb-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 active:opacity-90"
           >
-            <input {...getInputProps()} />
-            <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <p className="text-slate-600 mb-1">
-              {isDragActive ? 'Drop photos here' : 'Drag & drop photos here'}
-            </p>
-            <p className="text-sm text-slate-400">or click to browse (max 10MB per photo)</p>
-          </div>
+            <Camera className="w-6 h-6" />
+            Take Photo
+          </button>
+          
+          {/* Hidden camera input */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={e => { addFiles(e.target.files); e.target.value = '' }}
+            className="hidden"
+          />
 
+          {/* Choose from library */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-orange-400 hover:bg-slate-50 transition-colors"
+          >
+            <Upload className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+            <p className="text-slate-600">Or choose from library</p>
+            <p className="text-sm text-slate-400">Tap to browse photos</p>
+          </button>
+          
+          {/* Hidden file input for library */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={e => { addFiles(e.target.files); e.target.value = '' }}
+            className="hidden"
+          />
+
+          {/* Photo previews */}
           {previews.length > 0 && (
-            <div className="grid grid-cols-4 gap-4 mt-6">
+            <div className="grid grid-cols-3 gap-3 mt-4">
               {previews.map((preview, index) => (
-                <div key={index} className="relative group">
+                <div key={index} className="relative aspect-square">
                   <img
                     src={preview}
-                    alt={`Preview ${index + 1}`}
-                    className="w-full h-24 object-cover rounded-lg"
+                    alt={`Photo ${index + 1}`}
+                    className="w-full h-full object-cover rounded-lg"
                   />
                   <button
                     type="button"
                     onClick={() => removeFile(index)}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -180,16 +199,18 @@ export default function NewReport() {
           )}
         </div>
 
+        {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
+        {/* Submit */}
         <button
           type="submit"
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          disabled={loading || files.length === 0}
+          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {loading ? (
             <>

@@ -1,65 +1,35 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
-import { Upload, X, Image, Loader2 } from 'lucide-react'
+import { Upload, X, Image, Loader2, Camera } from 'lucide-react'
 import api from '../lib/api'
-import heic2any from 'heic2any'
 
 export default function NewReport() {
   const navigate = useNavigate()
   const [files, setFiles] = useState<File[]>([])
-  const [previews, setPreviews] = useState<string[]>([])
+  const [previews, setPreviews] = useState<(string | null)[]>([])
   const [propertyAddress, setPropertyAddress] = useState('')
   const [propertyType, setPropertyType] = useState('')
   const [developerName, setDeveloperName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const processFile = async (file: File): Promise<{ file: File; preview: string }> => {
-    const isHeic = file.type === 'image/heic' || 
-                   file.type === 'image/heif' || 
-                   file.name.toLowerCase().endsWith('.heic') ||
-                   file.name.toLowerCase().endsWith('.heif')
-
-    if (isHeic) {
-      try {
-        const convertedBlob = await heic2any({
-          blob: file,
-          toType: 'image/jpeg',
-          quality: 0.85
-        }) as Blob
-        
-        const convertedFile = new File(
-          [convertedBlob], 
-          file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
-          { type: 'image/jpeg' }
-        )
-        
-        return {
-          file: convertedFile,
-          preview: URL.createObjectURL(convertedBlob)
-        }
-      } catch (err) {
-        console.error('HEIC conversion failed:', err)
-        return {
-          file,
-          preview: URL.createObjectURL(file)
-        }
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    acceptedFiles.forEach(file => {
+      const isHeic = file.type === 'image/heic' || 
+                     file.type === 'image/heif' || 
+                     file.name.toLowerCase().endsWith('.heic') ||
+                     file.name.toLowerCase().endsWith('.heif')
+      
+      setFiles(prev => [...prev, file])
+      
+      if (isHeic) {
+        // Can't preview HEIC in browser - use null as placeholder
+        setPreviews(prev => [...prev, null])
+      } else {
+        setPreviews(prev => [...prev, URL.createObjectURL(file)])
       }
-    }
-    
-    return {
-      file,
-      preview: URL.createObjectURL(file)
-    }
-  }
-
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    for (const file of acceptedFiles) {
-      const { file: processedFile, preview } = await processFile(file)
-      setFiles(prev => [...prev, processedFile])
-      setPreviews(prev => [...prev, preview])
-    }
+    })
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -71,7 +41,9 @@ export default function NewReport() {
   })
 
   function removeFile(index: number) {
-    URL.revokeObjectURL(previews[index])
+    if (previews[index]) {
+      URL.revokeObjectURL(previews[index] as string)
+    }
     setFiles(prev => prev.filter((_, i) => i !== index))
     setPreviews(prev => prev.filter((_, i) => i !== index))
   }
@@ -196,15 +168,22 @@ export default function NewReport() {
             <p className="text-sm text-slate-400">or click to browse (max 10MB per photo)</p>
           </div>
 
-          {previews.length > 0 && (
+          {files.length > 0 && (
             <div className="grid grid-cols-4 gap-4 mt-6">
-              {previews.map((preview, index) => (
+              {files.map((file, index) => (
                 <div key={index} className="relative group">
-                  <img
-                    src={preview}
-                    alt={`Preview ${index + 1}`}
-                    className="w-full h-24 object-cover rounded-lg"
-                  />
+                  {previews[index] ? (
+                    <img
+                      src={previews[index] as string}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-full h-24 bg-slate-100 rounded-lg flex flex-col items-center justify-center">
+                      <Camera className="w-6 h-6 text-slate-400 mb-1" />
+                      <span className="text-xs text-slate-500">HEIC</span>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => removeFile(index)}

@@ -16,7 +16,6 @@ export default function ReportSuccess() {
     if (sessionId) {
       verifyPayment()
     } else {
-      // No session ID - check if already complete
       checkReportStatus()
     }
   }, [sessionId, reportId])
@@ -31,7 +30,6 @@ export default function ReportSuccess() {
         setStatus('complete')
       } else {
         setStatus('generating')
-        // Poll for completion
         pollForPdf()
       }
     } catch (err: any) {
@@ -61,7 +59,7 @@ export default function ReportSuccess() {
 
   async function pollForPdf() {
     let attempts = 0
-    const maxAttempts = 30 // 60 seconds max
+    const maxAttempts = 30
     
     const poll = async () => {
       attempts++
@@ -87,17 +85,21 @@ export default function ReportSuccess() {
     setTimeout(poll, 2000)
   }
 
-  return (
-    <div className="max-w-2xl mx-auto text-center">
-      {status === 'verifying' && (
+  if (status === 'verifying') {
+    return (
+      <div className="max-w-2xl mx-auto text-center">
         <div className="bg-white rounded-xl border border-slate-200 p-12">
           <Loader2 className="w-16 h-16 text-orange-500 animate-spin mx-auto mb-6" />
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Verifying Payment</h1>
           <p className="text-slate-500">Please wait while we confirm your payment...</p>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {status === 'generating' && (
+  if (status === 'generating') {
+    return (
+      <div className="max-w-2xl mx-auto text-center">
         <div className="bg-white rounded-xl border border-slate-200 p-12">
           <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <FileText className="w-8 h-8 text-orange-500" />
@@ -109,9 +111,13 @@ export default function ReportSuccess() {
             <span className="text-sm text-slate-500">Creating professional PDF</span>
           </div>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {status === 'complete' && pdfUrl && (
+  if (status === 'complete' && pdfUrl) {
+    return (
+      <div className="max-w-2xl mx-auto text-center">
         <div className="bg-white rounded-xl border border-slate-200 p-12">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10 text-green-500" />
@@ -141,32 +147,34 @@ export default function ReportSuccess() {
             ← Back to Dashboard
           </Link>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {status === 'error' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-12">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertCircle className="w-8 h-8 text-red-500" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-2">Something Went Wrong</h1>
-          <p className="text-slate-500 mb-6">{error}</p>
-          
-          <div className="space-y-4">
-            <Link
-              to={`/report/${reportId}/review`}
-              className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-semibold hover:bg-slate-200 transition-all"
-            >
-              Back to Review
-            </Link>
-            <p className="text-sm text-slate-500">
-              Need help? Contact us at{' '}
-              <a href="mailto:hello@snaglog.co.uk" className="text-orange-600 hover:underline">
-                hello@snaglog.co.uk
-              </a>
-            </p>
-          </div>
+  return (
+    <div className="max-w-2xl mx-auto text-center">
+      <div className="bg-white rounded-xl border border-slate-200 p-12">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <AlertCircle className="w-8 h-8 text-red-500" />
         </div>
-      )}
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">Something Went Wrong</h1>
+        <p className="text-slate-500 mb-6">{error}</p>
+        
+        <div className="space-y-4">
+          <Link
+            to={`/report/${reportId}/review`}
+            className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-semibold hover:bg-slate-200 transition-all"
+          >
+            Back to Review
+          </Link>
+          <p className="text-sm text-slate-500">
+            Need help? Contact us at{' '}
+            <a href="mailto:hello@snaglog.co.uk" className="text-orange-600 hover:underline">
+              hello@snaglog.co.uk
+            </a>
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

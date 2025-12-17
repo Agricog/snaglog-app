@@ -124,8 +124,7 @@ export default function ReportSuccess() {
           </div>
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Report Ready!</h1>
           <p className="text-slate-500 mb-8">Your snagging report has been generated successfully.</p>
-          
-          
+          <a
             href={pdfUrl}
             download
             target="_blank"
@@ -135,11 +134,9 @@ export default function ReportSuccess() {
             <Download className="w-5 h-5" />
             Download PDF Report
           </a>
-
           <p className="text-sm text-slate-500 mb-8">
             Your report is also saved in your dashboard for future access.
           </p>
-
           <Link to="/" className="inline-flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium">
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
@@ -157,7 +154,6 @@ export default function ReportSuccess() {
         </div>
         <h1 className="text-2xl font-bold text-slate-800 mb-2">Something Went Wrong</h1>
         <p className="text-slate-500 mb-6">{error}</p>
-        
         <Link
           to={`/report/${reportId}/review`}
           className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-semibold hover:bg-slate-200 transition-all mb-4"
@@ -165,10 +161,7 @@ export default function ReportSuccess() {
           Back to Review
         </Link>
         <p className="text-sm text-slate-500">
-          Need help? Contact us at{' '}
-          <a href="mailto:hello@snaglog.co.uk" className="text-orange-600 hover:underline">
-            hello@snaglog.co.uk
-          </a>
+          Need help? Contact us at hello@snaglog.co.uk
         </p>
       </div>
     </div>

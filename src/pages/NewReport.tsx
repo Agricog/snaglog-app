@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { Upload, X, Image, Loader2 } from 'lucide-react'
 import api from '../lib/api'
+import heic2any from 'heic2any'
 
 export default function NewReport() {
   const navigate = useNavigate()
@@ -14,23 +15,65 @@ export default function NewReport() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-  setFiles((prev) => [...prev, ...acceptedFiles])
-  
-  // Create previews using URL.createObjectURL (more reliable)
-  const newPreviews = acceptedFiles.map((file) => URL.createObjectURL(file))
-  setPreviews((prev) => [...prev, ...newPreviews])
-}, [])
+  const processFile = async (file: File): Promise<{ file: File; preview: string }> => {
+    const isHeic = file.type === 'image/heic' || 
+                   file.type === 'image/heif' || 
+                   file.name.toLowerCase().endsWith('.heic') ||
+                   file.name.toLowerCase().endsWith('.heif')
+
+    if (isHeic) {
+      try {
+        const convertedBlob = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.85
+        }) as Blob
+        
+        const convertedFile = new File(
+          [convertedBlob], 
+          file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+          { type: 'image/jpeg' }
+        )
+        
+        return {
+          file: convertedFile,
+          preview: URL.createObjectURL(convertedBlob)
+        }
+      } catch (err) {
+        console.error('HEIC conversion failed:', err)
+        return {
+          file,
+          preview: URL.createObjectURL(file)
+        }
+      }
+    }
+    
+    return {
+      file,
+      preview: URL.createObjectURL(file)
+    }
+  }
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    for (const file of acceptedFiles) {
+      const { file: processedFile, preview } = await processFile(file)
+      setFiles(prev => [...prev, processedFile])
+      setPreviews(prev => [...prev, preview])
+    }
+  }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp', '.heic'] },
-    maxSize: 10 * 1024 * 1024, // 10MB
+    accept: { 
+      'image/*': ['.jpeg', '.jpg', '.png', '.webp', '.heic', '.heif'] 
+    },
+    maxSize: 10 * 1024 * 1024,
   })
 
   function removeFile(index: number) {
-    setFiles((prev) => prev.filter((_, i) => i !== index))
-    setPreviews((prev) => prev.filter((_, i) => i !== index))
+    URL.revokeObjectURL(previews[index])
+    setFiles(prev => prev.filter((_, i) => i !== index))
+    setPreviews(prev => prev.filter((_, i) => i !== index))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -55,7 +98,7 @@ export default function NewReport() {
       if (propertyType) formData.append('propertyType', propertyType)
       if (developerName) formData.append('developerName', developerName)
       
-      files.forEach((file) => {
+      files.forEach(file => {
         formData.append('photos', file)
       })
 
@@ -63,10 +106,8 @@ export default function NewReport() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
-      // Start analysis
       await api.post(`/api/analyze/${res.data.report.id}`)
 
-      // Navigate to review page
       navigate(`/report/${res.data.report.id}/review`)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create report')
@@ -81,7 +122,6 @@ export default function NewReport() {
       <p className="text-slate-500 mb-8">Upload photos of defects and we'll analyze them with AI</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Property Details */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Property Details</h2>
           
@@ -93,7 +133,7 @@ export default function NewReport() {
               <input
                 type="text"
                 value={propertyAddress}
-                onChange={(e) => setPropertyAddress(e.target.value)}
+                onChange={e => setPropertyAddress(e.target.value)}
                 placeholder="e.g., 47 Meadow View, Bristol, BS16 4QT"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
               />
@@ -106,7 +146,7 @@ export default function NewReport() {
                 </label>
                 <select
                   value={propertyType}
-                  onChange={(e) => setPropertyType(e.target.value)}
+                  onChange={e => setPropertyType(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                 >
                   <option value="">Select type</option>
@@ -126,7 +166,7 @@ export default function NewReport() {
                 <input
                   type="text"
                   value={developerName}
-                  onChange={(e) => setDeveloperName(e.target.value)}
+                  onChange={e => setDeveloperName(e.target.value)}
                   placeholder="e.g., Persimmon Homes"
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                 />
@@ -135,7 +175,6 @@ export default function NewReport() {
           </div>
         </div>
 
-        {/* Photo Upload */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">
             Photos ({files.length})
@@ -157,7 +196,6 @@ export default function NewReport() {
             <p className="text-sm text-slate-400">or click to browse (max 10MB per photo)</p>
           </div>
 
-          {/* Preview Grid */}
           {previews.length > 0 && (
             <div className="grid grid-cols-4 gap-4 mt-6">
               {previews.map((preview, index) => (
@@ -180,14 +218,12 @@ export default function NewReport() {
           )}
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
-        {/* Submit Button */}
         <button
           type="submit"
           disabled={loading}

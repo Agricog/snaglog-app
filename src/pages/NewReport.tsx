@@ -3,6 +3,48 @@ import { useNavigate } from 'react-router-dom'
 import { X, Image, Loader2, Camera, FolderOpen } from 'lucide-react'
 import api from '../lib/api'
 
+// Compress image before upload
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    const img = document.createElement('img')
+    
+    img.onload = () => {
+      // Max 1920px on longest side
+      const maxSize = 1920
+      let { width, height } = img
+      
+      if (width > height && width > maxSize) {
+        height = (height * maxSize) / width
+        width = maxSize
+      } else if (height > maxSize) {
+        width = (width * maxSize) / height
+        height = maxSize
+      }
+      
+      canvas.width = width
+      canvas.height = height
+      ctx?.drawImage(img, 0, 0, width, height)
+      
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
+          } else {
+            resolve(file)
+          }
+        },
+        'image/jpeg',
+        0.8
+      )
+    }
+    
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 export default function NewReport() {
   const navigate = useNavigate()
   const [files, setFiles] = useState<File[]>([])
@@ -15,12 +57,13 @@ export default function NewReport() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const addFiles = (newFiles: FileList | null) => {
+  const addFiles = async (newFiles: FileList | null) => {
     if (!newFiles) return
-    Array.from(newFiles).forEach(file => {
-      setFiles(prev => [...prev, file])
-      setPreviews(prev => [...prev, URL.createObjectURL(file)])
-    })
+    for (const file of Array.from(newFiles)) {
+      const compressed = await compressImage(file)
+      setFiles(prev => [...prev, compressed])
+      setPreviews(prev => [...prev, URL.createObjectURL(compressed)])
+    }
   }
 
   function removeFile(index: number) {
@@ -57,9 +100,12 @@ export default function NewReport() {
 
       const res = await api.post('/api/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000, // 2 minute timeout
       })
 
-      await api.post(`/api/analyze/${res.data.report.id}`)
+      await api.post(`/api/analyze/${res.data.report.id}`, {}, {
+        timeout: 180000, // 3 minute timeout for AI
+      })
 
       navigate(`/report/${res.data.report.id}/review`)
     } catch (err: any) {
@@ -75,7 +121,6 @@ export default function NewReport() {
       <p className="text-slate-500 mb-6">Take photos of defects and we'll analyze them with AI</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Property Details */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Property Details</h2>
           
@@ -129,13 +174,11 @@ export default function NewReport() {
           </div>
         </div>
 
-        {/* Photos */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">
             Photos ({files.length})
           </h2>
 
-          {/* Camera Button */}
           <button
             type="button"
             onClick={() => cameraInputRef.current?.click()}
@@ -145,7 +188,6 @@ export default function NewReport() {
             Take Photo
           </button>
           
-          {/* Hidden camera input */}
           <input
             ref={cameraInputRef}
             type="file"
@@ -155,7 +197,6 @@ export default function NewReport() {
             className="hidden"
           />
 
-          {/* Choose from library button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -165,7 +206,6 @@ export default function NewReport() {
             <span className="text-slate-600">Choose from Library</span>
           </button>
           
-          {/* Hidden file input for library */}
           <input
             ref={fileInputRef}
             type="file"
@@ -175,7 +215,6 @@ export default function NewReport() {
             className="hidden"
           />
 
-          {/* Photo previews */}
           {previews.length > 0 && (
             <div className="grid grid-cols-3 gap-3 mt-4">
               {previews.map((preview, index) => (
@@ -198,14 +237,12 @@ export default function NewReport() {
           )}
         </div>
 
-        {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
-        {/* Submit */}
         <button
           type="submit"
           disabled={loading || files.length === 0}

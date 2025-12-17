@@ -87,7 +87,7 @@ export default function ReportReview() {
         if (!prev) return null
         return {
           ...prev,
-          snags: prev.snags.map(s => s.id === snagId ? { ...s, ...data, userEdited: true } : s)
+          snags: (prev.snags || []).map(s => s.id === snagId ? { ...s, ...data, userEdited: true } : s)
         }
       })
     } catch (err) {
@@ -113,7 +113,7 @@ export default function ReportReview() {
       await api.delete(`/api/report/${reportId}/snag/${snagId}`)
       setReport(prev => {
         if (!prev) return null
-        return { ...prev, snags: prev.snags.filter(s => s.id !== snagId) }
+        return { ...prev, snags: (prev.snags || []).filter(s => s.id !== snagId) }
       })
     } catch (err) {
       console.error('Failed to delete:', err)
@@ -123,7 +123,6 @@ export default function ReportReview() {
   async function handleCheckout() {
     setCheckoutLoading(true)
     try {
-      // Save notes before checkout
       if (notes !== report?.notes) {
         await api.patch(`/api/report/${reportId}`, { notes })
       }
@@ -164,7 +163,7 @@ export default function ReportReview() {
 
   if (error || !report) {
     return (
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto px-4">
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error || 'Report not found'}
         </div>
@@ -172,15 +171,15 @@ export default function ReportReview() {
     )
   }
 
-  const snags = report?.snags || []
-const severityCounts = {
-  major: snags.filter(s => s.severity === 'MAJOR').length,
-  moderate: snags.filter(s => s.severity === 'MODERATE').length,
-  minor: snags.filter(s => s.severity === 'MINOR').length,
-}
+  const snags = report.snags || []
+  const severityCounts = {
+    major: snags.filter(s => s.severity === 'MAJOR').length,
+    moderate: snags.filter(s => s.severity === 'MODERATE').length,
+    minor: snags.filter(s => s.severity === 'MINOR').length,
+  }
 
   return (
-    <div className="max-w-4xl mx-auto pb-24">
+    <div className="max-w-4xl mx-auto px-4 pb-24">
       {/* Header */}
       <button
         onClick={() => navigate('/')}
@@ -217,16 +216,16 @@ const severityCounts = {
 
       {/* Snags List */}
       <h2 className="text-lg font-semibold text-slate-800 mb-4">
-        Defects ({report.snags.length})
+        Defects ({snags.length})
       </h2>
 
       <div className="space-y-4 mb-6">
-        {report.snags.map((snag, index) => (
+        {snags.map((snag, index) => (
           <div
             key={snag.id}
             className="bg-white rounded-xl border border-slate-200 overflow-hidden"
           >
-            {/* Snag Header - Always visible */}
+            {/* Snag Header */}
             <div
               className="flex items-start gap-4 p-4 cursor-pointer hover:bg-slate-50"
               onClick={() => setExpandedSnag(expandedSnag === snag.id ? null : snag.id)}
@@ -388,13 +387,13 @@ const severityCounts = {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
           <div className="text-sm text-slate-600">
-            <span className="font-semibold text-slate-800">{report.snags.length} defects</span>
+            <span className="font-semibold text-slate-800">{snags.length} defects</span>
             <span className="mx-2">•</span>
             <span>Ready to generate</span>
           </div>
           <button
             onClick={handleCheckout}
-            disabled={checkoutLoading || report.snags.length === 0}
+            disabled={checkoutLoading || snags.length === 0}
             className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-xl font-bold hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {checkoutLoading ? (
@@ -413,4 +412,4 @@ const severityCounts = {
       </div>
     </div>
   )
-            }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
-import { CheckCircle2, Download, FileText, Loader2, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Download, FileText, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
 import api from '../lib/api'
 
 export default function ReportSuccess() {
@@ -140,11 +140,9 @@ export default function ReportSuccess() {
             Your report is also saved in your dashboard for future access.
           </p>
 
-          <Link
-            to="/"
-            className="text-orange-600 hover:text-orange-700 font-medium"
-          >
-            ← Back to Dashboard
+          <Link to="/" className="inline-flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
           </Link>
         </div>
       </div>
@@ -160,20 +158,18 @@ export default function ReportSuccess() {
         <h1 className="text-2xl font-bold text-slate-800 mb-2">Something Went Wrong</h1>
         <p className="text-slate-500 mb-6">{error}</p>
         
-        <div className="space-y-4">
-          <Link
-            to={`/report/${reportId}/review`}
-            className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-semibold hover:bg-slate-200 transition-all"
-          >
-            Back to Review
-          </Link>
-          <p className="text-sm text-slate-500">
-            Need help? Contact us at{' '}
-            <a href="mailto:hello@snaglog.co.uk" className="text-orange-600 hover:underline">
-              hello@snaglog.co.uk
-            </a>
-          </p>
-        </div>
+        <Link
+          to={`/report/${reportId}/review`}
+          className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-semibold hover:bg-slate-200 transition-all mb-4"
+        >
+          Back to Review
+        </Link>
+        <p className="text-sm text-slate-500">
+          Need help? Contact us at{' '}
+          <a href="mailto:hello@snaglog.co.uk" className="text-orange-600 hover:underline">
+            hello@snaglog.co.uk
+          </a>
+        </p>
       </div>
     </div>
   )

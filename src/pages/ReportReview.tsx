@@ -10,8 +10,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
-  CreditCard,
-  FileText
+  CreditCard
 } from 'lucide-react'
 import api from '../lib/api'
 
